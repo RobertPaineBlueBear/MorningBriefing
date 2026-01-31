@@ -10,7 +10,6 @@ import json
 import os
 import random
 import tkinter as tk
-import webbrowser
 from tkinter import font as tkfont
 
 import requests
@@ -150,11 +149,6 @@ def fetch_weather():
         return {"error": str(e)}
 
 
-def _ensure_firefox_browser():
-    """Point Python's webbrowser module at Firefox on macOS."""
-    os.environ["BROWSER"] = "open -a Firefox %s"
-
-
 def _get_google_calendar_credentials():
     """Load or create Google Calendar OAuth credentials (read-only)."""
     creds = None
@@ -169,8 +163,16 @@ def _get_google_calendar_credentials():
             flow = InstalledAppFlow.from_client_secrets_file(
                 CREDENTIALS_FILE, SCOPES
             )
-            _ensure_firefox_browser()
-            creds = flow.run_local_server(port=0)
+            print("\n" + "=" * 60)
+            print("Open the link below in your browser to authorize")
+            print("read-only access to Google Calendar.")
+            print("=" * 60)
+            creds = flow.run_local_server(
+                port=0,
+                open_browser=False,
+                authorization_prompt_message="\n  {url}\n",
+            )
+            print("Authorization complete!\n")
         with open(TOKEN_FILE, "w") as f:
             f.write(creds.to_json())
     return creds
