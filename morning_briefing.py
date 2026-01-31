@@ -150,16 +150,9 @@ def fetch_weather():
         return {"error": str(e)}
 
 
-def _register_firefox():
-    """Register Firefox so the OAuth flow can open it on macOS."""
-    try:
-        webbrowser.get("firefox")
-    except webbrowser.Error:
-        path = "/Applications/Firefox.app/Contents/MacOS/firefox"
-        if os.path.exists(path):
-            webbrowser.register(
-                "firefox", None, webbrowser.BackgroundBrowser(path)
-            )
+def _ensure_firefox_browser():
+    """Point Python's webbrowser module at Firefox on macOS."""
+    os.environ["BROWSER"] = "open -a Firefox %s"
 
 
 def _get_google_calendar_credentials():
@@ -176,8 +169,8 @@ def _get_google_calendar_credentials():
             flow = InstalledAppFlow.from_client_secrets_file(
                 CREDENTIALS_FILE, SCOPES
             )
-            _register_firefox()
-            creds = flow.run_local_server(port=0, browser="firefox")
+            _ensure_firefox_browser()
+            creds = flow.run_local_server(port=0)
         with open(TOKEN_FILE, "w") as f:
             f.write(creds.to_json())
     return creds
