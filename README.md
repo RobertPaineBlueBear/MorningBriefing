@@ -5,7 +5,7 @@ A Python desktop app that greets you each morning with today's weather, calendar
 ## Features
 
 - **Weather** - Current temperature, high/low, and conditions for Austin, TX (via [Open-Meteo](https://open-meteo.com/) - no API key required)
-- **Calendar Events** - Pulls today's events from macOS Calendar (via `icalBuddy` or AppleScript)
+- **Calendar Events** - Pulls today's events from Google Calendar (read-only access)
 - **Motivational Quote** - A random quote to start your day
 - **Dark-themed GUI** - Clean `tkinter` window, easy to read
 
@@ -34,14 +34,20 @@ To test it immediately:
 python3 morning_briefing.py
 ```
 
-## Calendar Integration
+## Google Calendar Setup
 
-The app tries two methods to read your macOS Calendar:
+The app connects to your Google Calendar with **read-only** access. One-time setup:
 
-1. **icalBuddy** (recommended) - Install with `brew install ical-buddy`
-2. **AppleScript fallback** - Works out of the box but may prompt for Calendar access permission
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project (or select an existing one)
+3. Enable the **Google Calendar API** (APIs & Services > Library)
+4. Create OAuth 2.0 credentials (APIs & Services > Credentials > Create Credentials > OAuth client ID)
+   - Application type: **Desktop app**
+5. Download the JSON file and save it as `credentials.json` in the `MorningBriefing/` directory
+6. Run the app - a browser window will open for you to authorize read-only access to your calendar
+7. After authorizing, a `token.json` file is created locally so you won't need to log in again
 
-If neither is available, the app will show "No events today."
+The app only requests `calendar.readonly` scope - it cannot create, edit, or delete any events.
 
 ## Customization
 
