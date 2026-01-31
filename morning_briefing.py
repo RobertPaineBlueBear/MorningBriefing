@@ -7,11 +7,17 @@ in a clean GUI window. Designed to launch on macOS startup.
 
 import datetime
 import json
+import os
 import random
-import subprocess
 import tkinter as tk
+import webbrowser
 from tkinter import font as tkfont
+
 import requests
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 
 # ── Configuration ────────────────────────────────────────────────────────────
 CITY = "Austin"
@@ -19,6 +25,12 @@ LATITUDE = 30.2672
 LONGITUDE = -97.7431
 WINDOW_WIDTH = 520
 WINDOW_HEIGHT = 640
+
+# ── Google Calendar (read-only) ─────────────────────────────────────────────
+SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+_DIR = os.path.dirname(os.path.abspath(__file__))
+CREDENTIALS_FILE = os.path.join(_DIR, "credentials.json")
+TOKEN_FILE = os.path.join(_DIR, "token.json")
 
 # ── Colors & Style ───────────────────────────────────────────────────────────
 BG = "#1e1e2e"
@@ -138,81 +150,77 @@ def fetch_weather():
         return {"error": str(e)}
 
 
+def _ensure_firefox_browser():
+    """Point Python's webbrowser module at Firefox on macOS."""
+    os.environ["BROWSER"] = "open -a Firefox %s"
+
+
+def _get_google_calendar_credentials():
+    """Load or create Google Calendar OAuth credentials (read-only)."""
+    creds = None
+    if os.path.exists(TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            if not os.path.exists(CREDENTIALS_FILE):
+                return None
+            flow = InstalledAppFlow.from_client_secrets_file(
+                CREDENTIALS_FILE, SCOPES
+            )
+            _ensure_firefox_browser()
+            creds = flow.run_local_server(port=0)
+        with open(TOKEN_FILE, "w") as f:
+            f.write(creds.to_json())
+    return creds
+
+
 def fetch_calendar_events():
     """
-    Fetch today's calendar events using macOS 'icalBuddy' if available,
-    otherwise fall back to AppleScript via osascript.
-    Returns a list of event strings.
+    Fetch today's calendar events from Google Calendar (read-only).
+    Returns a list of formatted event strings.
     """
-    today = datetime.date.today()
-    events = []
-
-    # Try icalBuddy first (install via: brew install ical-buddy)
     try:
-        result = subprocess.run(
-            [
-                "icalBuddy",
-                "-f",
-                "-nc",
-                "-nrd",
-                "-ea",
-                "-b", "• ",
-                "eventsFrom:" + today.isoformat(),
-                "to:" + today.isoformat(),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            for line in result.stdout.strip().split("\n"):
-                line = line.strip()
-                if line:
-                    events.append(line)
-            return events
-    except FileNotFoundError:
-        pass
-    except Exception:
-        pass
+        creds = _get_google_calendar_credentials()
+        if creds is None:
+            return ["(credentials.json not found \u2014 see README)"]
 
-    # Fallback: AppleScript via osascript
-    script = f'''
-    tell application "Calendar"
-        set today to date "{today.strftime('%B %d, %Y')}"
-        set tomorrow to today + 1 * days
-        set output to ""
-        repeat with cal in calendars
-            set evts to (every event of cal whose start date >= today and start date < tomorrow)
-            repeat with evt in evts
-                set evtStart to start date of evt
-                set h to hours of evtStart
-                set m to minutes of evtStart
-                set timeStr to (h as string) & ":" & text -2 thru -1 of ("0" & (m as string))
-                set output to output & "\u2022 " & timeStr & " - " & summary of evt & linefeed
-            end repeat
-        end repeat
-        return output
-    end tell
-    '''
-    try:
-        result = subprocess.run(
-            ["osascript", "-e", script],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            for line in result.stdout.strip().split("\n"):
-                line = line.strip()
-                if line:
-                    events.append(line)
-            return events
-    except FileNotFoundError:
-        pass
-    except Exception:
-        pass
+        service = build("calendar", "v3", credentials=creds)
 
-    return events
+        today = datetime.date.today()
+        time_min = datetime.datetime.combine(
+            today, datetime.time.min
+        ).isoformat() + "Z"
+        time_max = datetime.datetime.combine(
+            today, datetime.time.max
+        ).isoformat() + "Z"
+
+        result = (
+            service.events()
+            .list(
+                calendarId="primary",
+                timeMin=time_min,
+                timeMax=time_max,
+                singleEvents=True,
+                orderBy="startTime",
+            )
+            .execute()
+        )
+
+        events = []
+        for item in result.get("items", []):
+            start = item["start"].get("dateTime", item["start"].get("date", ""))
+            summary = item.get("summary", "(No title)")
+            if "T" in start:
+                dt = datetime.datetime.fromisoformat(start)
+                time_str = dt.strftime("%-I:%M %p")
+                events.append(f"\u2022 {time_str} - {summary}")
+            else:
+                events.append(f"\u2022 All day - {summary}")
+        return events
+    except Exception as e:
+        return [f"(Calendar error: {e})"]
 
 
 def get_quote():
