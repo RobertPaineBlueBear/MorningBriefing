@@ -9,14 +9,24 @@ import datetime
 import json
 import os
 import random
+import sys
 import tkinter as tk
 from tkinter import font as tkfont
 
 import requests
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+
+try:
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    from googleapiclient.discovery import build
+except ImportError:
+    print(
+        "ERROR: Google API libraries not installed.\n"
+        "Run:  pip install -r requirements.txt\n",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 # ── Configuration ────────────────────────────────────────────────────────────
 CITY = "Austin"
@@ -429,12 +439,13 @@ class MorningBriefingApp:
 if __name__ == "__main__":
     # Authenticate with Google Calendar before opening the GUI so the
     # OAuth URL (if needed) is clearly visible in the terminal.
-    print("Authenticating with Google Calendar...")
+    print("Authenticating with Google Calendar...", flush=True)
     creds = _get_google_calendar_credentials()
     if creds is None:
         print(
             "ERROR: credentials.json not found.\n"
-            "See the 'Google Calendar Setup' section in README.md.\n"
+            "See the 'Google Calendar Setup' section in README.md.\n",
+            flush=True,
         )
     app = MorningBriefingApp()
     app.run()
