@@ -427,5 +427,14 @@ class MorningBriefingApp:
 
 
 if __name__ == "__main__":
+    # Authenticate with Google Calendar before opening the GUI so the
+    # OAuth URL (if needed) is clearly visible in the terminal.
+    print("Authenticating with Google Calendar...")
+    creds = _get_google_calendar_credentials()
+    if creds is None:
+        print(
+            "ERROR: credentials.json not found.\n"
+            "See the 'Google Calendar Setup' section in README.md.\n"
+        )
     app = MorningBriefingApp()
     app.run()
